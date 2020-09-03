@@ -1,6 +1,8 @@
 import mne
+import os
 import numpy as np
 from sklearn.preprocessing import StandardScaler
+import matplotlib.pyplot as plt
 
 
 def read_mark_txt(file_dir):
@@ -23,56 +25,51 @@ def read_mark_txt(file_dir):
     return np.array(mark), np.array(point)
 
 
+def get_file_name(file_dir, file_type):
+    """
+    :遍历指定目录下的所有指定类型的数据文件
+    :file_dir: 如有一目录下包含.eeg原始数据文件，.vhdr文件(含mark)和.vmrk文件，便可获得指定文件的完整路径
+    :file_type: 指定需要找到的文件类型
+
+    :返回
+    :file_names: 指定文件的绝对路径
+    """
+
+    file_names = []
+
+    for root, dirs, files in os.walk(file_dir, topdown=False):
+        for file in files:
+            if file_type in file:
+                file_names.append(os.path.join(root, file))
+
+    return file_names
+
+
 channels_index = ['Fp1', 'Fp2', 'AF3', 'AF4', 'F7', 'F8', 'F3', 'Fz', 'F4', 'FC5', 'FC6', 'T7', 'T8', 'C3'
                     , 'C4', 'CP5', 'CP6', 'P7', 'P8', 'P3', 'Pz', 'P4', 'PO7', 'PO8', 'PO3', 'PO4', 'O1',
                       'O2']
 
-LENGTH = 750  # 截取1.5s的数据段
-WINDOWS = 150  # 滑动窗口长度为300ms
-STRIDE = 75  # 步长为150ms
 
 if __name__ == '__main__':
-    set_file_dir = fr'D:\SJTU\Study\MME_Lab\Teacher_Lu\click_number\EEG词袋模型\preprocess\yangyifeng0808.set'
-    raw = mne.io.read_raw_eeglab(set_file_dir, preload=True)
-    raw_eeg = raw.get_data()
+    name = 'weichuanxiang'
+    set_file_dir = get_file_name(fr'D:\SJTU\Study\MME_Lab\Teacher_Lu\click_number\EEG词袋模型\preprocess', '.set')
+    vmrk_file_dir = get_file_name(fr'D:\SJTU\Study\MME_Lab\Teacher_Lu\click_number\EEG词袋模型\segmentation', '.vmrk')
 
-    print('raw_eeg.shape: ', raw_eeg.shape)
+    for index, file in enumerate(set_file_dir):
+        if not name in file: continue
+        raw = mne.io.read_raw_eeglab(file, preload=True)
+        raw_eeg = raw.get_data()
 
-    mark, point = read_mark_txt(
-        fr'D:\SJTU\Study\MME_Lab\Teacher_Lu\click_number\EEG词袋模型\original_record\yangyifeng0808.vmrk')
-    print('mark.shape: ', mark.shape, 'point.shape: ', point.shape)
+        print('raw_eeg.shape: ', raw_eeg.shape)
 
-    rest_eeg = raw_eeg[:, 1:264894]
-    test_eeg = raw_eeg[:, 264894:401749]
+        print(vmrk_file_dir[index])
+        mark, point = read_mark_txt(vmrk_file_dir[index])
+        print('mark.shape: ', mark.shape, 'point.shape: ', point.shape)
 
-    print('rest_eeg.shape: ', rest_eeg.shape)
-    print('test_eeg.shape: ', test_eeg.shape)
+        for i in np.arange(len(mark) - 1):
+            if mark[i + 1] != 0 and (point[i+1] - point[i]) >= 150:
+                seq = raw_eeg[:, point[i]:point[i+1]]
+                np.save(fr'D:\SJTU\Study\MME_Lab\Teacher_Lu\click_number\EEG词袋模型\train_data\{name}\{index}_{i}.npy', seq)
 
-    norm_sequence = []
-    abnorm_sequence = []
+        print(f'{file} done!')
 
-    for i in np.arange(len(mark) - 1):
-        if mark[i + 1] != 0 and (point[i + 1] - point[i]) >= LENGTH:
-            seq = raw_eeg[:, point[i+1] - LENGTH:point[i+1]]  # 点击时长超过1.5s的倒截取1.5s作为数据集
-            for j in np.arange(int((seq.shape[1] - WINDOWS) / STRIDE) + 2):
-                start = j * STRIDE
-                end = (j + 2) * STRIDE
-                if end < len(seq):
-                    seq_ = StandardScaler().fit_transform(seq[:, start:end].T).T
-                    norm_sequence.append(seq_)
-                    abnorm_seq = seq_
-                    abnorm_seq = np.hstack((abnorm_seq[:, STRIDE:], abnorm_seq[:, :STRIDE]))
-                    abnorm_sequence.append(abnorm_seq)
-                else:
-                    seq_ = StandardScaler().fit_transform(seq[:, -WINDOWS:].T).T
-                    norm_sequence.append(seq_)
-                    abnorm_seq = seq_
-                    abnorm_seq = np.hstack((abnorm_seq[:, STRIDE:], abnorm_seq[:, :STRIDE]))
-                    abnorm_sequence.append(abnorm_seq)
-
-    norm_sequence = np.array(norm_sequence)
-    abnorm_sequence = np.array(abnorm_sequence)
-    print('norm_sequence.shape: ', norm_sequence.shape, 'abnorm_sequence.shape: ', abnorm_sequence.shape)
-
-    np.save(fr'D:\SJTU\Study\MME_Lab\Teacher_Lu\click_number\EEG词袋模型\norm_sequence.npy', norm_sequence)
-    np.save(fr'D:\SJTU\Study\MME_Lab\Teacher_Lu\click_number\EEG词袋模型\abnorm_sequence.npy', abnorm_sequence)

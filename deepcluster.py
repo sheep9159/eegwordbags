@@ -92,11 +92,12 @@ class EEGBert(nn.Module):
         src_key_padding_mask = src_key_padding_mask.bool()
 
         x = x.masked_fill(x == float('-inf'), 0.)
-        x = self.position_encode(x)  # 加入位置编码
 
-        # 添加mask，构建自监督学习, 15%的位置被替换成了0.
-        masked_indices = torch.bernoulli(torch.full(x.size(), 0.15)).bool()
+        # 添加mask，构建自监督学习, 15%的时间点位置被替换成了0.
+        masked_indices = torch.bernoulli(torch.full(x.size()[:-1], 0.15)).bool().unsqueeze(2).expand(x.size())
         x[masked_indices] = 0.
+
+        x = self.position_encode(x)  # 加入位置编码
 
         output = self.transformer_encoder(x, src_key_padding_mask=src_key_padding_mask)
         return output

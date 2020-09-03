@@ -9,17 +9,17 @@ from sklearn.preprocessing import StandardScaler
 
 
 dictionary = ['A', 'B', 'C', 'D', 'E']
-range_n_clusters = [2, 3, 4]
+range_n_clusters = [2, 3, 4, 5]
 
 # datasets = np.load(fr'D:\SJTU\Study\MME_Lab\Teacher_Lu\click_number\EEG词袋模型\datasets.npy')
-set_file_dir = fr'D:\SJTU\Study\MME_Lab\Teacher_Lu\click_number\EEG词袋模型\preprocess\yangyifeng0808.set'
+set_file_dir = fr'D:\SJTU\Study\MME_Lab\Teacher_Lu\click_number\EEG词袋模型\preprocess\weichuanxiang.set'
 raw = mne.io.read_raw_eeglab(set_file_dir, preload=True)
 raw_eeg = raw.get_data()
 
 print('raw_eeg.shape: ', raw_eeg.shape)
 
 mark, point = read_mark_txt(
-    fr'D:\SJTU\Study\MME_Lab\Teacher_Lu\click_number\EEG词袋模型\original_record\yangyifeng0808.vmrk')
+    fr'D:\SJTU\Study\MME_Lab\Teacher_Lu\click_number\EEG词袋模型\original_record\weichuanxiang.vmrk')
 print('mark.shape: ', mark.shape, 'point.shape: ', point.shape)
 
 LSTM = eeglstm()
@@ -31,12 +31,12 @@ for n_clusters in range_n_clusters:
 
     for i in np.arange(len(mark) - 1):
         encode = []
-        if mark[i + 1] != 0 and (point[i + 1] - point[i]) >= LENGTH:
-            seq = raw_eeg[:, point[i+1] - LENGTH:point[i+1]]
+        if mark[i + 1] != 0 and (point[i+1] - point[i]) >= 120:
+            seq = raw_eeg[:, point[i]:point[i+1]]
             for j in np.arange(int((seq.shape[1] - WINDOWS) / STRIDE) + 2):
                 start = j * STRIDE
                 end = (j + 2) * STRIDE
-                if end < len(seq):
+                if end < seq.shape[1]:
                     seq_ = StandardScaler().fit_transform(seq[:, start:end].T).T
                     encode.append(seq_)
                 else:
@@ -46,6 +46,6 @@ for n_clusters in range_n_clusters:
             encode = np.array(encode)
             _, feature = LSTM(torch.from_numpy(encode.transpose((0, 2, 1))).float())
             label = kmeans.predict(feature.detach().numpy())
-            print(label, '----', i)
+            print(label, '----', i, (point[i+1]-point[i])/500)
 
     print('------------------------------------------------------------')

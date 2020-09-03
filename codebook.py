@@ -16,6 +16,8 @@ if __name__ == '__main__':
         np.load(fr'D:\SJTU\Study\MME_Lab\Teacher_Lu\click_number\EEG词袋模型\norm_sequence.npy').transpose(
             (0, 2, 1))).float().to(device)
 
+    print(data)
+
     _, feature = LSTM(data)
     feature = feature.cpu().detach().numpy()
     print('feature.shape: ', feature.shape)
@@ -28,8 +30,7 @@ if __name__ == '__main__':
         ax.set_ylim([0, len(feature) + (n_clusters + 1) * 10])
 
         kmeans = KMeans(n_clusters=n_clusters, random_state=0).fit(feature)
-        cluster_labels = kmeans.predict(feature)
-        print(cluster_labels)
+        cluster_labels = kmeans.fit_predict(feature)
 
         joblib.dump(kmeans, fr'D:\SJTU\Study\MME_Lab\Teacher_Lu\click_number\EEG词袋模型\聚类效果图\特征\{n_clusters}.model')
 

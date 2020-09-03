@@ -2,13 +2,13 @@ import torch
 import torch.utils.data
 import torch.nn as nn
 import numpy as np
-from train_data import LENGTH
+from train_data import WINDOWS
 
 
-EPOCH = 100           # 训练整批数据多少次, 为了节约时间, 我们只训练一次
+EPOCH = 200           # 训练整批数据多少次, 为了节约时间, 我们只训练一次
 train_BATCH_SIZE = 1000  # 1000
-test_BATCH_SIZE = 200
-TIME_STEP = LENGTH      # rnn 时间步数 / 图片高度
+test_BATCH_SIZE = 250
+TIME_STEP = WINDOWS      # rnn 时间步数 / 图片高度
 INPUT_SIZE = 28     # rnn 每步输入值 / 图片每行像素
 LR = 0.01           # learning rate
 
@@ -20,14 +20,18 @@ class myLstmDatasets(torch.utils.data.Dataset):
         super().__init__()
         data1 = np.load(fr'D:\SJTU\Study\MME_Lab\Teacher_Lu\click_number\EEG词袋模型\norm_sequence.npy')
         data2 = np.load(fr'D:\SJTU\Study\MME_Lab\Teacher_Lu\click_number\EEG词袋模型\abnorm_sequence.npy')
-        self.data = torch.from_numpy(np.vstack((data1, data2)).transpose((0, 2, 1))).float().to(device)
+        data3 = np.load(fr'D:\SJTU\Study\MME_Lab\Teacher_Lu\click_number\EEG词袋模型\abnorm_sequence_2.npy')
+        data = np.vstack((data1, data2))
+        self.data = torch.from_numpy(np.vstack((data, data3)).transpose((0, 2, 1))).float().to(device)
         print('datasets.shape: ', self.data.size())
 
     def __getitem__(self, item):
         if item < self.data.size()[0] / 2:
             target = torch.tensor(0).to(device)
-        else:
+        elif (item > self.data.size()[0] / 3) and (item < self.data.size()[0] / 3 * 2):
             target = torch.tensor(1).to(device)
+        else:
+            target = torch.tensor(2).to(device)
 
         return self.data[item, :, :], target
 
@@ -40,20 +44,21 @@ class eeglstm(nn.Module):
         super(eeglstm, self).__init__()
         self.lstm = nn.LSTM(
             input_size=28,
-            hidden_size=32,
-            num_layers=1,
+            hidden_size=64,
+            num_layers=2,
             batch_first=True,
             bidirectional=True
         )
 
         self.linear = nn.Sequential(
-            nn.Linear(64, 64),
+            nn.Linear(128, 64),
             nn.Dropout(p=0.25),
             nn.ReLU(),
-            nn.Linear(64, 32)
+            nn.Linear(64, 32),
+            nn.ReLU(),
         )
 
-        self.out2 = nn.Linear(32, 2)
+        self.out2 = nn.Linear(32, 3)
 
     def forward(self, x):
         r_out, (h_n, h_c) = self.lstm(x, None)
@@ -86,7 +91,7 @@ if __name__ == '__main__':
             loss.backward()  # backpropagation, compute gradients
             optimizer.step()  # apply gradients
 
-            if epoch % 5 == 0:
+            if epoch % 20 == 0:
                 with torch.no_grad():
                     for _, (test_x, test_y) in enumerate(test_loader):
                         test_output, _ = LSTM(test_x)
